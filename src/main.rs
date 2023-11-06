@@ -1,124 +1,151 @@
-use macroquad::prelude::*;
+use bevy::{
+    input::{
+        mouse::{MouseScrollUnit, MouseWheel},
+        touchpad::TouchpadMagnify,
+    },
+    prelude::*,
+};
 
-struct CameraData {
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Brush Builder".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }))
+        .add_systems(Startup, setup)
+        .add_systems(
+            PreUpdate,
+            (
+                orbit_camera_rotate_input,
+                orbit_camera_pan_input,
+                orbit_camera_zoom_input,
+            ),
+        )
+        .add_systems(Update, orbit_camera)
+        .add_systems(PostUpdate, (gizmo_origin, gizmo_grid))
+        .run();
+}
+
+#[derive(Component)]
+struct OrbitCamera {
     pivot: Vec3,
     distance: f32,
     yaw: f32,
     pitch: f32,
-    transform: Mat4,
 }
 
-impl Default for CameraData {
+impl Default for OrbitCamera {
     fn default() -> Self {
         Self {
             pivot: Vec3::ZERO,
-            distance: 2.0,
+            distance: 5.0,
             yaw: std::f32::consts::FRAC_PI_4,
-            pitch: std::f32::consts::FRAC_PI_8,
-            transform: Mat4::from_rotation_translation(
-                Quat::from_euler(
-                    EulerRot::YXZ,
-                    std::f32::consts::FRAC_PI_4,
-                    std::f32::consts::FRAC_PI_8,
-                    0.0,
-                ),
-                vec3(-2.0, 1.0, -2.0),
-            ),
+            pitch: -std::f32::consts::FRAC_PI_8,
         }
     }
 }
 
-impl CameraData {
-    fn right(&self) -> Vec3 {
-        self.transform.col(0).xyz()
-    }
-
-    fn up(&self) -> Vec3 {
-        self.transform.col(1).xyz()
-    }
-
-    fn forward(&self) -> Vec3 {
-        self.transform.col(2).xyz()
-    }
-
-    fn position(&self) -> Vec3 {
-        self.transform.col(3).xyz()
-    }
-
-    fn to_camera_3d(&self) -> Camera3D {
-        Camera3D {
-            position: self.position(),
-            target: self.position() + self.forward(),
-            up: self.up(),
-            ..Default::default()
-        }
-    }
-
-    fn compute_transform(&mut self) {
-        let rotation = Quat::from_euler(EulerRot::YXZ, self.yaw, self.pitch, 0.0);
-        let translation = rotation * vec3(0.0, 0.0, -self.distance) + self.pivot;
-        self.transform = Mat4::from_rotation_translation(rotation, translation);
-    }
-
-    fn add_orbit_yaw_input(&mut self, input: f32) {
-        self.yaw += input;
-    }
-
-    fn add_orbit_pitch_input(&mut self, input: f32) {
-        self.pitch += input;
-    }
-
-    fn add_orbit_input(&mut self, input: Vec2) {
-        self.add_orbit_yaw_input(input.x);
-        self.add_orbit_pitch_input(input.y);
-    }
-
-    fn add_pan_right_input(&mut self, input: f32) {
-        self.pivot += self.right() * input;
-    }
-
-    fn add_pan_up_input(&mut self, input: f32) {
-        self.pivot += self.up() * input;
-    }
-
-    fn add_pan_input(&mut self, input: Vec2) {
-        self.add_pan_right_input(input.x);
-        self.add_pan_up_input(input.y);
-    }
-
-    fn add_zoom_input(&mut self, input: f32) {
-        self.distance = (self.distance.sqrt() + input).powi(2);
+impl OrbitCamera {
+    fn update_transform(&self, transform: &mut Transform) {
+        transform.rotation = Quat::from_euler(EulerRot::YXZ, self.yaw, self.pitch, 0.0);
+        transform.translation =
+            transform.rotation * Vec3::new(0.0, 0.0, self.distance) + self.pivot;
     }
 }
 
-#[macroquad::main("Brush Builder")]
-async fn main() {
-    let mut camera_data = CameraData::default();
+fn setup(mut commands: Commands) {
+    commands.spawn((OrbitCamera::default(), Camera3dBundle::default()));
+}
 
-    loop {
-        clear_background(BLACK);
+fn orbit_camera_rotate_input(
+    keycode: Res<Input<KeyCode>>,
+    mut scroll_evr: EventReader<MouseWheel>,
+    mut query: Query<&mut OrbitCamera>,
+) {
+    if keycode.pressed(KeyCode::ShiftLeft) {
+        return;
+    }
 
-        let mouse_delta = mouse_delta_position();
-        if is_mouse_button_down(MouseButton::Middle) {
-            if is_key_down(KeyCode::LeftShift) {
-                camera_data.add_pan_input(-mouse_delta);
-            } else {
-                camera_data.add_orbit_input(mouse_delta * vec2(1.0, -1.0));
+    for ev in scroll_evr.read() {
+        match ev.unit {
+            MouseScrollUnit::Line => {}
+            MouseScrollUnit::Pixel => {
+                for mut orbit_camera in &mut query {
+                    orbit_camera.yaw -= ev.x * 0.001;
+                    orbit_camera.pitch -= ev.y * 0.001;
+                }
             }
         }
-        camera_data.add_zoom_input(mouse_wheel().1 * -0.001);
+    }
+}
 
-        camera_data.compute_transform();
-        set_camera(&camera_data.to_camera_3d());
+fn orbit_camera_pan_input(
+    keycode: Res<Input<KeyCode>>,
+    mut scroll_evr: EventReader<MouseWheel>,
+    mut query: Query<(&GlobalTransform, &mut OrbitCamera)>,
+) {
+    if !keycode.pressed(KeyCode::ShiftLeft) {
+        return;
+    }
 
-        draw_line_3d(Vec3::ZERO, Vec3::X, RED);
-        draw_line_3d(Vec3::ZERO, Vec3::Y, GREEN);
-        draw_line_3d(Vec3::ZERO, Vec3::Z, BLUE);
+    for ev in scroll_evr.read() {
+        match ev.unit {
+            MouseScrollUnit::Line => {}
+            MouseScrollUnit::Pixel => {
+                for (transform, mut orbit_camera) in &mut query {
+                    let transform = transform.compute_transform();
+                    orbit_camera.pivot -= transform.local_x() * ev.x * 0.001;
+                    orbit_camera.pivot += transform.local_y() * ev.y * 0.001;
+                }
+            }
+        }
+    }
+}
 
-        draw_cube_wires(Vec3::ZERO, Vec3::ONE, WHITE);
+fn orbit_camera_zoom_input(
+    mut magnify_evr: EventReader<TouchpadMagnify>,
+    mut query: Query<&mut OrbitCamera>,
+) {
+    for ev in magnify_evr.read() {
+        for mut orbit_camera in &mut query {
+            orbit_camera.distance = (orbit_camera.distance.sqrt() - ev.0).powi(2);
+        }
+    }
+}
 
-        // draw_grid(32, 0.1, WHITE, GRAY);
+fn orbit_camera(mut query: Query<(&mut Transform, &OrbitCamera)>) {
+    for (mut transform, orbit_camera) in &mut query {
+        orbit_camera.update_transform(&mut transform);
+    }
+}
 
-        next_frame().await
+fn gizmo_origin(mut gizmos: Gizmos) {
+    gizmos.line(Vec3::ZERO, Vec3::X, Color::RED);
+    gizmos.line(Vec3::ZERO, Vec3::Y, Color::GREEN);
+    gizmos.line(Vec3::ZERO, Vec3::Z, Color::BLUE);
+}
+
+fn gizmo_grid(mut gizmos: Gizmos) {
+    let num = 32;
+    let step = 0.1;
+    let size = step * num as f32;
+
+    for i in 0..=num {
+        let x = step * i as f32 - size * 0.5;
+
+        gizmos.line(
+            Vec3::new(x, 0.0, -size * 0.5),
+            Vec3::new(x, 0.0, size * 0.5),
+            Color::WHITE.with_a(0.1),
+        );
+
+        gizmos.line(
+            Vec3::new(-size * 0.5, 0.0, x),
+            Vec3::new(size * 0.5, 0.0, x),
+            Color::WHITE.with_a(0.1),
+        );
     }
 }
