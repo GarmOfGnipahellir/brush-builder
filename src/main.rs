@@ -1,5 +1,7 @@
 mod brush;
+mod brush_mesh;
 mod orbit_camera;
+mod polygon;
 
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -35,14 +37,14 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
             parent.spawn(DirectionalLightBundle::default());
         });
 
-    let brush = brush::Brush::from_planes(&[
-        brush::Plane::new(Vec3::X, 0.5),
-        brush::Plane::new(Vec3::Y, 0.5),
-        brush::Plane::new(Vec3::Z, 0.5),
-        brush::Plane::new(Vec3::NEG_X, 0.5),
-        brush::Plane::new(Vec3::NEG_Y, 0.5),
-        brush::Plane::new(Vec3::NEG_Z, 0.5),
-        brush::Plane::new(Vec3::ONE.normalize(), 0.5),
+    let brush = brush_mesh::BrushMesh::from_planes(&[
+        brush_mesh::Plane::new(Vec3::X, 0.5),
+        brush_mesh::Plane::new(Vec3::Y, 0.5),
+        brush_mesh::Plane::new(Vec3::Z, 0.5),
+        brush_mesh::Plane::new(Vec3::NEG_X, 0.5),
+        brush_mesh::Plane::new(Vec3::NEG_Y, 0.5),
+        brush_mesh::Plane::new(Vec3::NEG_Z, 0.5),
+        brush_mesh::Plane::new(Vec3::ONE.normalize(), 0.5),
     ]);
     commands.spawn((
         PbrBundle {
@@ -52,13 +54,13 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         Wireframe,
     ));
 
-    let brush = brush::Brush::from_planes(&[
-        brush::Plane::new(Vec3::X, 0.75),
-        brush::Plane::new(Vec3::Y, 0.0),
-        brush::Plane::new(Vec3::Z, 0.75),
-        brush::Plane::new(Vec3::NEG_X, 0.75),
-        brush::Plane::new(Vec3::NEG_Y, 1.0),
-        brush::Plane::new(Vec3::NEG_Z, 0.75),
+    let brush = brush_mesh::BrushMesh::from_planes(&[
+        brush_mesh::Plane::new(Vec3::X, 0.75),
+        brush_mesh::Plane::new(Vec3::Y, 0.0),
+        brush_mesh::Plane::new(Vec3::Z, 0.75),
+        brush_mesh::Plane::new(Vec3::NEG_X, 0.75),
+        brush_mesh::Plane::new(Vec3::NEG_Y, 1.0),
+        brush_mesh::Plane::new(Vec3::NEG_Z, 0.75),
     ]);
     commands.spawn((
         PbrBundle {
@@ -98,14 +100,14 @@ fn gizmo_grid(mut gizmos: Gizmos) {
 }
 
 fn gizmo_brush(mut gizmos: Gizmos) {
-    let brush = brush::Brush::from_planes(&[
-        brush::Plane::new(Vec3::X, 0.5),
-        brush::Plane::new(Vec3::Y, 0.5),
-        brush::Plane::new(Vec3::Z, 0.5),
-        brush::Plane::new(Vec3::NEG_X, 0.5),
-        brush::Plane::new(Vec3::NEG_Y, 0.5),
-        brush::Plane::new(Vec3::NEG_Z, 0.5),
-        brush::Plane::new(Vec3::ONE.normalize(), 0.5),
+    let brush = brush_mesh::BrushMesh::from_planes(&[
+        brush_mesh::Plane::new(Vec3::X, 0.5),
+        brush_mesh::Plane::new(Vec3::Y, 0.5),
+        brush_mesh::Plane::new(Vec3::Z, 0.5),
+        brush_mesh::Plane::new(Vec3::NEG_X, 0.5),
+        brush_mesh::Plane::new(Vec3::NEG_Y, 0.5),
+        brush_mesh::Plane::new(Vec3::NEG_Z, 0.5),
+        brush_mesh::Plane::new(Vec3::ONE.normalize(), 0.5),
     ]);
 
     for p in &brush.polys {
